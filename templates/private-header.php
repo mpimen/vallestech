@@ -34,6 +34,7 @@ if ($normalizedRole === 'profesor') {
         'calendar' => ['label' => 'Calendario', 'href' => '/profesor/calendario.php'],
         'notices' => ['label' => 'Avisos', 'href' => '/profesor/avisos.php'],
         'profile' => ['label' => 'Perfil', 'href' => '/profesor/perfil.php'],
+        'materials' => ['label' => 'Materiales', 'href' => '/profesor/materiales.php'],
     ];
 } elseif ($normalizedRole === 'admin' || $normalizedRole === 'administrador') {
     $menuItems = [
