@@ -88,6 +88,10 @@ if ($normalizedRole === 'profesor') {
                         </a>
                     </li>
                 <?php endforeach; ?>
+
+                <li>
+                    <a href="/logout.php" class="logout-link">Cerrar sesión</a>
+                </li>
             </ul>
         </nav>
 

@@ -1,10 +1,21 @@
 <?php
-$pageTitle = 'Dashboard del alumno';
-$pageSubtitle = 'Tu espacio personal de estudio y seguimiento académico.';
+
+require_once __DIR__ . '/../../src/Auth/Session.php';
+require_once __DIR__ . '/../../src/Auth/Guard.php';
+
+use Auth\Guard;
+use Auth\Session;
+
+Guard::requireRole('student');
+
+$user = Session::get('user');
+
+$pageTitle = 'Dashboard';
+$pageSubtitle = 'Tu espacio personal de estudio';
 $pageStylesheet = '/assets/css/student-dashboard.css';
 $currentSection = 'dashboard';
-$userName = 'Carlos Pérez';
-$userRole = 'Alumno';
+$userName = $user['name'] ?? 'Alumno';
+$userRole = $user['role_label'] ?? 'Alumno';
 
 include __DIR__ . '/../../templates/private-header.php';
 ?>
