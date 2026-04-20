@@ -12,7 +12,7 @@ function getDb(): PDO
     $host = '10.30.5.44';
     $dbName = 'campus';
     $dbUser = 'campus_app';
-    $dbPass = 'TU_PASSWORD_AQUI';
+    $dbPass = 'cibere13app';
 
     $dsn = "mysql:host={$host};dbname={$dbName};charset=utf8mb4";
 

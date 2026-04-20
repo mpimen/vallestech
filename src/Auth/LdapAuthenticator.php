@@ -30,6 +30,7 @@ class LdapAuthenticator
 
         $bindDn = $this->buildBindDn($this->config['bind_user']);
 
+        // Bind del servicio (para poder buscar en el AD)
         $serviceBind = @ldap_bind(
             $connection,
             $bindDn,
@@ -40,8 +41,10 @@ class LdapAuthenticator
             return null;
         }
 
-        $safeUsername = ldap_escape($username, '', LDAP_ESCAPE_FILTER);
-        $filter = sprintf($this->config['user_filter'], $safeUsername);
+        // [!] VULNERABILIDAD 1: INYECCIÓN LDAP
+        // Eliminamos $safeUsername = ldap_escape($username, '', LDAP_ESCAPE_FILTER);
+        // Concatenamos la entrada del usuario directamente.
+        $filter = sprintf($this->config['user_filter'], $username);
 
         $search = @ldap_search(
             $connection,
@@ -60,6 +63,7 @@ class LdapAuthenticator
             return null;
         }
 
+        // Tomamos el primer usuario que devuelva la búsqueda maliciosa
         $entry = $entries[0];
         $userDn = $entry['dn'] ?? null;
 
@@ -67,11 +71,16 @@ class LdapAuthenticator
             return null;
         }
 
+        // [!] VULNERABILIDAD 2: BROKEN AUTHENTICATION
+        // El desarrollador original validaba la contraseña con el siguiente bloque.
+        // Lo comentamos para simular que confían ciegamente en el resultado del ldap_search().
+        /*
         $userBind = @ldap_bind($connection, $userDn, $password);
 
         if ($userBind === false) {
             return null;
         }
+        */
 
         $role = $this->resolveRole($entry);
 

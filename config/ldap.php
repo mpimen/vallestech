@@ -12,6 +12,7 @@ return [
     'user_filter' => '(&(objectClass=user)(sAMAccountName=%s))',
 
     'groups' => [
+        'admin'   => 'CN=Admins,OU=Grupos,OU=WebVallesTech,DC=vallestech,DC=local',
         'student' => 'CN=Alumnos,OU=Grupos,OU=WebVallesTech,DC=vallestech,DC=local',
         'teacher' => 'CN=Profesores,OU=Grupos,OU=WebVallesTech,DC=vallestech,DC=local',
     ],

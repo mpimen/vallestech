@@ -1,10 +1,30 @@
 <?php
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
+$currentUser = $_SESSION['user'] ?? [];
+
+$fullName = trim((string)($currentUser['display_name'] ?? $currentUser['name'] ?? 'Usuario'));
+$email = trim((string)($currentUser['email'] ?? $currentUser['mail'] ?? 'No disponible'));
+$role = trim((string)($currentUser['role'] ?? 'Alumno'));
+$group = trim((string)($currentUser['group'] ?? $currentUser['course_group'] ?? 'Sin grupo'));
+$status = trim((string)($currentUser['status'] ?? 'Activo'));
+$phone = trim((string)($currentUser['phone'] ?? 'No disponible'));
+$language = trim((string)($currentUser['language'] ?? 'Español'));
+$timezone = trim((string)($currentUser['timezone'] ?? 'Europe/Madrid'));
+
+$nameParts = preg_split('/\s+/', $fullName) ?: [];
+$firstName = $nameParts[0] ?? $fullName;
+$lastName = count($nameParts) > 1 ? implode(' ', array_slice($nameParts, 1)) : 'No disponible';
+$avatarLetter = strtoupper(mb_substr($fullName !== '' ? $fullName : 'U', 0, 1));
+
 $pageTitle = 'Perfil';
 $pageSubtitle = 'Datos personales, cuenta académica y ajustes básicos.';
 $pageStylesheet = '/assets/css/student-profile.css';
 $currentSection = 'profile';
-$userName = 'Carlos Pérez';
-$userRole = 'Alumno';
+$userName = $fullName !== '' ? $fullName : 'Usuario';
+$userRole = $role !== '' ? $role : 'Alumno';
 
 include __DIR__ . '/../../templates/private-header.php';
 ?>
@@ -12,21 +32,23 @@ include __DIR__ . '/../../templates/private-header.php';
 <section class="profile-hero">
     <article class="profile-hero__card">
         <div class="profile-hero__identity">
-            <div class="profile-avatar">C</div>
+            <div class="profile-avatar"><?= htmlspecialchars($avatarLetter) ?></div>
             <div>
                 <p class="profile-hero__eyebrow">Cuenta del estudiante</p>
-                <h2>Carlos Pérez</h2>
-                <p>Alumno de Desarrollo de Aplicaciones Web · Curso actual en seguimiento activo.</p>
+                <h2><?= htmlspecialchars($fullName) ?></h2>
+                <p>
+                    <?= htmlspecialchars($role) ?> · <?= htmlspecialchars($group) ?> · Estado <?= htmlspecialchars(mb_strtolower($status)) ?>
+                </p>
             </div>
         </div>
 
         <div class="profile-hero__summary">
             <div class="summary-box">
-                <strong>2º DAW</strong>
+                <strong><?= htmlspecialchars($group) ?></strong>
                 <span>Grupo académico</span>
             </div>
             <div class="summary-box">
-                <strong>Activo</strong>
+                <strong><?= htmlspecialchars($status) ?></strong>
                 <span>Estado de cuenta</span>
             </div>
         </div>
@@ -42,49 +64,43 @@ include __DIR__ . '/../../templates/private-header.php';
             </div>
         </div>
 
-        <form class="profile-form" action="#" method="post">
-            <div class="form-grid">
-                <div class="form-group">
-                    <label for="first_name">Nombre</label>
-                    <input type="text" id="first_name" name="first_name" value="Carlos">
-                </div>
-
-                <div class="form-group">
-                    <label for="last_name">Apellidos</label>
-                    <input type="text" id="last_name" name="last_name" value="Pérez Gómez">
-                </div>
-
-                <div class="form-group">
-                    <label for="email">Correo académico</label>
-                    <input type="email" id="email" name="email" value="carlos.perez@campus.local">
-                </div>
-
-                <div class="form-group">
-                    <label for="phone">Teléfono</label>
-                    <input type="text" id="phone" name="phone" value="+34 600 123 456">
-                </div>
+        <div class="form-grid">
+            <div class="form-group">
+                <label>Nombre</label>
+                <div class="profile-value"><?= htmlspecialchars($firstName) ?></div>
             </div>
 
-            <div class="form-actions">
-                <button type="submit" class="btn btn--primary">Guardar cambios</button>
+            <div class="form-group">
+                <label>Apellidos</label>
+                <div class="profile-value"><?= htmlspecialchars($lastName) ?></div>
             </div>
-        </form>
+
+            <div class="form-group">
+                <label>Correo académico</label>
+                <div class="profile-value"><?= htmlspecialchars($email) ?></div>
+            </div>
+
+            <div class="form-group">
+                <label>Teléfono</label>
+                <div class="profile-value"><?= htmlspecialchars($phone) ?></div>
+            </div>
+        </div>
     </article>
 
     <aside class="profile-sidebar">
         <article class="sidebar-card">
             <h3>Cuenta</h3>
             <ul>
-                <li>Rol: Alumno</li>
-                <li>Idioma: Español</li>
-                <li>Zona horaria: Europe/Madrid</li>
+                <li>Rol: <?= htmlspecialchars($role) ?></li>
+                <li>Idioma: <?= htmlspecialchars($language) ?></li>
+                <li>Zona horaria: <?= htmlspecialchars($timezone) ?></li>
             </ul>
         </article>
 
         <article class="sidebar-card">
-            <h3>Siguiente fase</h3>
+            <h3>Sesión</h3>
             <p>
-                Esta vista queda preparada para enlazar después con datos reales de sesión, LDAP y edición persistente del perfil.
+                Esta vista muestra la información disponible del usuario autenticado en la sesión actual.
             </p>
         </article>
     </aside>

@@ -19,11 +19,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $lastUsername = trim($_POST['username'] ?? '');
     $password = $_POST['password'] ?? '';
 
-    if (Auth::attempt($lastUsername, $password)) {
+    if ($lastUsername === '' || $password === '') {
+        $error = 'Introduce usuario y contraseña.';
+    } elseif (Auth::attempt($lastUsername, $password)) {
         Auth::redirectByRole();
+    } else {
+        $error = 'Credenciales no válidas o usuario sin rol asignado.';
     }
-
-    $error = 'Credenciales no válidas o usuario sin rol asignado.';
 }
 
 $pageTitle = 'Login';
@@ -78,7 +80,7 @@ include __DIR__ . '/../templates/header.php';
                     </div>
                 <?php endif; ?>
 
-                <form class="auth-form" action="/login.php" method="post">
+                <form class="auth-form" action="/login.php" method="post" novalidate>
                     <div class="form-group">
                         <label class="form-label" for="username">Usuario</label>
                         <input
@@ -88,6 +90,7 @@ include __DIR__ . '/../templates/header.php';
                             name="username"
                             value="<?= htmlspecialchars($lastUsername) ?>"
                             placeholder="usuario"
+                            autocomplete="username"
                             required
                         >
                     </div>
@@ -100,6 +103,7 @@ include __DIR__ . '/../templates/header.php';
                             id="password"
                             name="password"
                             placeholder="••••••••"
+                            autocomplete="current-password"
                             required
                         >
                     </div>

@@ -1,10 +1,19 @@
 <?php
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
+$currentUser = $_SESSION['user'] ?? [];
+
+$displayName = trim((string)($currentUser['display_name'] ?? $currentUser['name'] ?? 'Profesor'));
+$role = trim((string)($currentUser['role'] ?? 'Profesor'));
+
 $pageTitle = 'Dashboard del profesor';
 $pageSubtitle = 'Vista general de actividad docente, grupos y seguimiento.';
 $pageStylesheet = '/assets/css/teacher-dashboard.css';
 $currentSection = 'dashboard';
-$userName = 'Ana Martínez';
-$userRole = 'Profesor';
+$userName = $displayName !== '' ? $displayName : 'Profesor';
+$userRole = $role !== '' ? $role : 'Profesor';
 
 include __DIR__ . '/../../templates/private-header.php';
 ?>

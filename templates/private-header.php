@@ -23,32 +23,35 @@ if (!isset($userRole)) {
     $userRole = 'Alumno';
 }
 
-$normalizedRole = mb_strtolower($userRole, 'UTF-8');
+$normalizedRole = mb_strtolower(trim((string) $userRole), 'UTF-8');
 
-if ($normalizedRole === 'profesor') {
+if (in_array($normalizedRole, ['profesor', 'teacher', 'docente'], true)) {
     $menuItems = [
         'dashboard' => ['label' => 'Dashboard', 'href' => '/profesor/dashboard.php'],
         'courses' => ['label' => 'Asignaturas', 'href' => '/profesor/cursos.php'],
+        'materials' => ['label' => 'Materiales', 'href' => '/profesor/materiales.php'],
         'tasks' => ['label' => 'Tareas', 'href' => '/profesor/tareas.php'],
         'grades' => ['label' => 'Calificaciones', 'href' => '/profesor/calificaciones.php'],
         'calendar' => ['label' => 'Calendario', 'href' => '/profesor/calendario.php'],
         'notices' => ['label' => 'Avisos', 'href' => '/profesor/avisos.php'],
         'profile' => ['label' => 'Perfil', 'href' => '/profesor/perfil.php'],
-        'materials' => ['label' => 'Materiales', 'href' => '/profesor/materiales.php'],
     ];
-} elseif ($normalizedRole === 'admin' || $normalizedRole === 'administrador') {
+} elseif (in_array($normalizedRole, ['admin', 'administrador', 'administrator'], true)) {
     $menuItems = [
         'dashboard' => ['label' => 'Dashboard', 'href' => '/admin/dashboard.php'],
         'users' => ['label' => 'Usuarios', 'href' => '/admin/usuarios.php'],
-        'create-user' => ['label' => 'Crear usuario', 'href' => '/admin/crear-usuario.php'],
+        'create-user' => ['label' => 'Crear usuario', 'href' => '/admin/crear-usuarios.php'],
         'students' => ['label' => 'Alumnos', 'href' => '/admin/alumnos.php'],
         'teachers' => ['label' => 'Profesores', 'href' => '/admin/profesores.php'],
+        'courses' => ['label' => 'Cursos', 'href' => '/admin/cursos.php'],
+        'create-course' => ['label' => 'Crear curso', 'href' => '/admin/crear-curso.php'],
         'profile' => ['label' => 'Perfil', 'href' => '/admin/perfil.php'],
     ];
 } else {
     $menuItems = [
         'dashboard' => ['label' => 'Dashboard', 'href' => '/alumno/dashboard.php'],
         'courses' => ['label' => 'Asignaturas', 'href' => '/alumno/cursos.php'],
+        'materials' => ['label' => 'Materiales', 'href' => '/alumno/materiales.php'],
         'tasks' => ['label' => 'Tareas', 'href' => '/alumno/tareas.php'],
         'grades' => ['label' => 'Calificaciones', 'href' => '/alumno/calificaciones.php'],
         'calendar' => ['label' => 'Calendario', 'href' => '/alumno/calendario.php'],
