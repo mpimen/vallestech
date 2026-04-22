@@ -16,7 +16,7 @@ $form = [
     'role' => '',
 ];
 
-$ldapConfigPath = dirname(__DIR__, 2) . '/config/ldap.php';
+$ldapConfigPath = dirname(__DIR__, 2) . '/config/ldaps.php';
 $ldapConfig = null;
 
 if (!file_exists($ldapConfigPath)) {
@@ -55,7 +55,10 @@ function splitFullName(string $fullName): array
 
 function ldapConnectFromConfig(array $config)
 {
-    $connection = ldap_connect($config['host'], (int) $config['port']);
+    // Ignorar validación certificado autofirmado - debe ir antes de ldap_connect
+    ldap_set_option(null, LDAP_OPT_X_TLS_REQUIRE_CERT, LDAP_OPT_X_TLS_NEVER);
+
+    $connection = ldap_connect('ldaps://' . $config['host'], (int) $config['port']);
 
     if ($connection === false) {
         throw new RuntimeException('No se pudo conectar con el servidor LDAP.');
@@ -63,6 +66,7 @@ function ldapConnectFromConfig(array $config)
 
     ldap_set_option($connection, LDAP_OPT_PROTOCOL_VERSION, 3);
     ldap_set_option($connection, LDAP_OPT_REFERRALS, 0);
+    ldap_set_option($connection, LDAP_OPT_X_TLS_REQUIRE_CERT, LDAP_OPT_X_TLS_NEVER);
 
     if (!@ldap_bind($connection, $config['bind_user'], $config['bind_password'])) {
         throw new RuntimeException('Error de bind LDAP: ' . ldap_error($connection));

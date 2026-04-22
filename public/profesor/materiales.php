@@ -11,67 +11,68 @@ try {
     $user = Session::get('user');
 
     if (!$user) {
-        echo "<h3>Fallo de Sesión</h3><p>No estás logeado.</p>";
+        header('Location: /index.php');
         exit;
     }
 
     $rawRole = $user['role'] ?? $user['userRole'] ?? $user['role_label'] ?? '';
-    $normalizedRole = strtolower(trim((string)$rawRole));
-
-    if (!in_array($normalizedRole, ['profesor', 'teacher', 'prof'], true)) {
-        echo "<h3>Acceso Denegado</h3><p>Tu rol actual detectado es: " . htmlspecialchars($normalizedRole) . "</p>";
-        exit;
+    if (!in_array(strtolower(trim((string)$rawRole)), ['profesor', 'teacher', 'prof'], true)) {
+        http_response_code(403);
+        exit('Acceso denegado.');
     }
 
-    // EXTRAEMOS EL ID DEL PROFESOR (Requerido por la nueva BDD)
-    $teacherId = (int)($user['id'] ?? 0);
-    $teacherUsername = $user['username'] ?? '';
+    $teacherUsername = $user['username'] ?? ''; // El nombre de usuario del AD
     $userName = $user['name'] ?? $user['full_name'] ?? $teacherUsername ?? 'Profesor';
-
-    $pageTitle = 'Materiales';
-    $pageSubtitle = 'Sube y consulta materiales de tus asignaturas';
-    $pageStylesheet = '/assets/css/student-dashboard.css';
-    $currentSection = 'materials';
-    $userRole = 'Profesor';
-
+    
     $pdo = getDb();
+    
+    // --- LÓGICA DE CREACIÓN AUTOMÁTICA DE USUARIO (JIT Provisioning) ---
+    // Buscamos si el profesor ya existe en la base de datos local
+    $stmtFindTeacher = $pdo->prepare("SELECT id FROM users WHERE username = :username LIMIT 1");
+    $stmtFindTeacher->execute(['username' => $teacherUsername]);
+    $dbTeacherId = $stmtFindTeacher->fetchColumn();
+
+    // Si no existe, lo creamos automáticamente
+    if (!$dbTeacherId) {
+        try {
+            // Añadimos el campo display_name a la consulta SQL
+            $stmtInsertUser = $pdo->prepare("INSERT INTO users (username, display_name, role) VALUES (:username, :display_name, 'profesor')");
+            $stmtInsertUser->execute([
+                'username'     => $teacherUsername,
+                'display_name' => $userName // Esta variable ya la definimos arriba
+            ]);
+            $dbTeacherId = $pdo->lastInsertId();
+        } catch (\PDOException $e) {
+            die("<div style='padding:20px; background:#f8d7da; color:#721c24; font-family:sans-serif;'>
+                 <strong>Error al autocompletar el perfil del nuevo profesor:</strong> " . $e->getMessage() . "<br>
+                 <em>Verifica que la tabla no exija otros campos obligatorios (como email o nombre).</em></div>");
+        }
+    }
+
+    $teacherId = (int)$dbTeacherId;
+    // -------------------------------------------------------------------
+
     $errors = [];
     $successMessage = '';
-    $uploadDir = '/var/www/vallestech/storage/materials/';
 
-    if (!is_dir($uploadDir)) {
-        mkdir($uploadDir, 0775, true);
-    }
+    // --- RUTAS FÍSICAS (Adaptadas a Samba y Active Directory) ---
+    $baseSambaPublic = '/mnt/samba/publico/';
+    // Guardamos en: /home/usuario/Campus_Privado/
+    $baseSambaPrivate = '/mnt/samba/homes/' . $teacherUsername . '/Campus_Privado/';
 
-    // AVISO: He cambiado 'name' por 'title' en esta consulta para arreglar el Error 1054. 
-    // Si tu tabla courses usa 'nombre', cámbialo aquí.
-    $stmtCourses = $pdo->prepare("
-        SELECT id, code, title 
-        FROM courses
-        WHERE teacher_username = :teacher_username
-          AND (active = 1 OR active IS NULL)
-        ORDER BY title ASC
-    ");
-    $stmtCourses->execute(['teacher_username' => $teacherUsername]);
+    // Obtenemos las asignaturas del profesor usando su nuevo ID
+    $stmtCourses = $pdo->prepare("SELECT id, code, group_name AS course_name FROM courses WHERE teacher_id = ? AND (active = 1 OR active IS NULL)");
+    $stmtCourses->execute([$teacherId]);
     $courses = $stmtCourses->fetchAll();
-
-    $courseIds = array_map(static fn(array $c): int => (int)$c['id'], $courses);
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $courseId = (int)($_POST['course_id'] ?? 0);
         $title = trim($_POST['title'] ?? '');
-        $description = trim($_POST['description'] ?? '');
-        $visibility = trim($_POST['visibility'] ?? 'course_only'); // Ahora acepta 'private'
+        $visibility = trim($_POST['visibility'] ?? 'course_only');
 
-        if ($courseId <= 0) $errors[] = 'Debes seleccionar una asignatura.';
-        if (!in_array($courseId, $courseIds, true)) $errors[] = 'La asignatura no te pertenece.';
-        if ($title === '') $errors[] = 'El título es obligatorio.';
-        if (!in_array($visibility, ['course_only', 'private'], true)) $errors[] = 'Visibilidad no válida.';
-        
         if (!isset($_FILES['material_file']) || $_FILES['material_file']['error'] !== UPLOAD_ERR_OK) {
-            $errors[] = 'Debes subir un archivo válido.';
+            $errors[] = 'Archivo no válido.';
         } else {
-            // RESTRICCIÓN DE FORMATOS
             $originalName = $_FILES['material_file']['name'];
             $extension = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
             $allowedExtensions = ['pdf', 'doc', 'docx', 'ppt', 'pptx'];
@@ -82,64 +83,59 @@ try {
         }
 
         if (!$errors) {
-            $tmpPath = $_FILES['material_file']['tmp_name'];
-            $safeBaseName = preg_replace('/[^a-zA-Z0-9_-]/', '_', pathinfo($originalName, PATHINFO_FILENAME));
-            $storedFilename = time() . '_' . $courseId . '_' . $safeBaseName . '.' . $extension;
-            $destinationPath = $uploadDir . $storedFilename;
+            $targetDir = ($visibility === 'private') ? $baseSambaPrivate : $baseSambaPublic;
+            
+            // Crea la subcarpeta "Campus_Privado" dentro de la home del profe si no existe
+            if (!is_dir($targetDir)) {
+                mkdir($targetDir, 0777, true);
+            }
 
-            if (!move_uploaded_file($tmpPath, $destinationPath)) {
-                $errors[] = 'No se pudo mover el archivo al servidor.';
+            $safeBaseName = preg_replace('/[^a-zA-Z0-9_-]/', '_', pathinfo($originalName, PATHINFO_FILENAME));
+            $fileName = time() . '_' . $courseId . '_' . $safeBaseName . '.' . $extension;
+            
+            if (move_uploaded_file($_FILES['material_file']['tmp_name'], $targetDir . $fileName)) {
+                $fileHash = hash_file('sha256', $targetDir . $fileName);
+                $stmtInsert = $pdo->prepare("INSERT INTO materials (course_id, title, file_path, file_hash, visibility, uploaded_by_teacher_id) VALUES (?, ?, ?, ?, ?, ?)");
+                $stmtInsert->execute([$courseId, $title, $fileName, $fileHash, $visibility, $teacherId]);
+                $successMessage = 'Material subido correctamente a tu recurso de red.';
             } else {
-                $fileHash = hash_file('sha256', $destinationPath);
-                
-                // INSERCIÓN ADAPTADA A LA NUEVA TABLA
-                $stmtInsert = $pdo->prepare("
-                    INSERT INTO materials (course_id, title, description, file_path, file_hash, visibility, uploaded_by_teacher_id) 
-                    VALUES (:course_id, :title, :description, :file_path, :file_hash, :visibility, :uploaded_by_teacher_id)
-                ");
-                $stmtInsert->execute([
-                    'course_id' => $courseId, 
-                    'title' => $title, 
-                    'description' => $description ?: null,
-                    'file_path' => $storedFilename, 
-                    'file_hash' => $fileHash, 
-                    'visibility' => $visibility, 
-                    'uploaded_by_teacher_id' => $teacherId, // Usamos el ID int(11)
-                ]);
-                $successMessage = 'Material subido correctamente.';
+                $errors[] = 'Error al escribir en Samba. Verifica que la home de este usuario exista en el servidor y los permisos de montaje.';
             }
         }
     }
 
-    // LISTADO ADAPTADO
+    // Listar todos los materiales de este profesor
     $stmtMaterials = $pdo->prepare("
-        SELECT m.id, m.title, m.description, m.file_path, m.visibility, m.created_at, c.code AS course_code, c.title AS course_name
+        SELECT m.id, m.title, m.file_path, m.visibility, m.created_at, c.code AS course_code, c.group_name AS course_name
         FROM materials m INNER JOIN courses c ON c.id = m.course_id
-        WHERE m.uploaded_by_teacher_id = :teacher_id 
-        ORDER BY m.created_at DESC, m.id DESC
+        WHERE m.uploaded_by_teacher_id = ? ORDER BY m.id DESC
     ");
-    $stmtMaterials->execute(['teacher_id' => $teacherId]);
-    $materials = $stmtMaterials->fetchAll();
+    $stmtMaterials->execute([$teacherId]);
+    $allMaterials = $stmtMaterials->fetchAll();
+
+    $publicMaterials = array_filter($allMaterials, fn($m) => $m['visibility'] === 'course_only');
+    $privateMaterials = array_filter($allMaterials, fn($m) => $m['visibility'] === 'private');
+
+    // Variables de plantilla
+    $pageTitle = 'Materiales';
+    $pageSubtitle = 'Sube y consulta materiales de tus asignaturas';
+    $pageStylesheet = '/assets/css/student-dashboard.css';
+    $currentSection = 'materials';
+    $userRole = 'Profesor';
 
     include __DIR__ . '/../../templates/private-header.php';
 ?>
 
 <section class="dashboard-grid dashboard-grid--secondary">
     <article class="panel panel-wide">
-        <div class="panel__header">
-            <div><p class="panel__eyebrow">Profesor</p><h2>Subir material</h2></div>
-        </div>
+        <div class="panel__header"><div><p class="panel__eyebrow">Profesor</p><h2>Subir material</h2></div></div>
 
-        <?php if ($errors): ?>
-            <div class="notice-list">
-                <?php foreach ($errors as $error): ?>
-                    <div class="notice-item" style="border-left-color:#dc3545;"><strong>Error</strong><span><?= htmlspecialchars($error) ?></span></div>
-                <?php endforeach; ?>
-            </div>
-        <?php endif; ?>
-
+        <?php if ($errors): foreach ($errors as $error): ?>
+            <div class="notice-item" style="border-left-color:#dc3545;"><strong>Error</strong><span><?= htmlspecialchars($error) ?></span></div>
+        <?php endforeach; endif; ?>
+        
         <?php if ($successMessage): ?>
-            <div class="notice-list"><div class="notice-item" style="border-left-color:#28a745;"><strong>Correcto</strong><span><?= htmlspecialchars($successMessage) ?></span></div></div>
+            <div class="notice-item" style="border-left-color:#28a745;"><strong>Correcto</strong><span><?= htmlspecialchars($successMessage) ?></span></div>
         <?php endif; ?>
 
         <form method="post" enctype="multipart/form-data" class="material-form">
@@ -148,17 +144,16 @@ try {
                 <select name="course_id" required>
                     <option value="">Selecciona una asignatura</option>
                     <?php foreach ($courses as $course): ?>
-                        <option value="<?= (int)$course['id'] ?>"><?= htmlspecialchars($course['code'] . ' - ' . $course['title']) ?></option>
+                        <option value="<?= (int)$course['id'] ?>"><?= htmlspecialchars($course['code'] . ' - ' . $course['course_name']) ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>
-            <div class="form-row"><label>Título</label><input type="text" name="title" maxlength="200" required></div>
-            <div class="form-row"><label>Descripción</label><textarea name="description" rows="4"></textarea></div>
+            <div class="form-row"><label>Título</label><input type="text" name="title" required></div>
             <div class="form-row">
-                <label>Visibilidad</label>
+                <label>Visibilidad (Destino en Servidor de Archivos)</label>
                 <select name="visibility" required>
-                    <option value="course_only">Solo alumnos del curso</option>
-                    <option value="private">Privado (Solo yo)</option>
+                    <option value="course_only">Público (Para los alumnos de la asignatura)</option>
+                    <option value="private">Privado (En mi unidad de red personal H:)</option>
                 </select>
             </div>
             <div class="form-row"><label>Archivo (PDF, Word, PPT)</label><input type="file" name="material_file" accept=".pdf,.doc,.docx,.ppt,.pptx" required></div>
@@ -167,28 +162,38 @@ try {
     </article>
 </section>
 
-<section class="panel">
-    <div class="panel__header"><div><p class="panel__eyebrow">Listado</p><h2>Tus materiales</h2></div></div>
+<section class="panel" style="margin-bottom: 20px;">
+    <div class="panel__header"><div><p class="panel__eyebrow">Mi Unidad Personal</p><h2>Archivos Privados</h2></div></div>
     <div class="notice-list">
-        <?php foreach ($materials as $material): ?>
-            <div class="notice-item">
-                <strong><?= htmlspecialchars($material['title']) ?></strong>
-                <span><?= htmlspecialchars($material['course_code'] . ' · ' . $material['course_name'] . ' · ' . $material['visibility']) ?></span>
-                <div style="margin-top:10px;"><a href="/descargar.php?id=<?= $material['id'] ?>" target="_blank" class="panel-link-button">⬇️ Descargar</a></div>
-            </div>
-        <?php endforeach; ?>
+        <?php if (!$privateMaterials): ?>
+             <div class="notice-item"><span>No tienes archivos en tu carpeta privada.</span></div>
+        <?php else: ?>
+            <?php foreach ($privateMaterials as $material): ?>
+                <div class="notice-item" style="border-left-color: #ffc107;">
+                    <strong>🔒 <?= htmlspecialchars($material['title']) ?></strong>
+                    <span><?= htmlspecialchars($material['course_code'] . ' · ' . $material['course_name']) ?></span>
+                    <div style="margin-top:10px;"><a href="/descargar.php?id=<?= $material['id'] ?>" target="_blank" class="panel-link-button">⬇️ Descargar Privado</a></div>
+                </div>
+            <?php endforeach; ?>
+        <?php endif; ?>
     </div>
 </section>
 
-<?php 
-    include __DIR__ . '/../../templates/private-footer.php'; 
+<section class="panel">
+    <div class="panel__header"><div><p class="panel__eyebrow">Directorio Público</p><h2>Archivos de Asignaturas</h2></div></div>
+    <div class="notice-list">
+        <?php if (!$publicMaterials): ?>
+             <div class="notice-item"><span>No has subido archivos públicos.</span></div>
+        <?php else: ?>
+            <?php foreach ($publicMaterials as $material): ?>
+                <div class="notice-item" style="border-left-color: #17a2b8;">
+                    <strong>🌍 <?= htmlspecialchars($material['title']) ?></strong>
+                    <span><?= htmlspecialchars($material['course_code'] . ' · ' . $material['course_name']) ?></span>
+                    <div style="margin-top:10px;"><a href="/descargar.php?id=<?= $material['id'] ?>" target="_blank" class="panel-link-button">⬇️ Descargar Público</a></div>
+                </div>
+            <?php endforeach; ?>
+        <?php endif; ?>
+    </div>
+</section>
 
-} catch (\Throwable $e) {
-    die("<div style='padding:20px; font-family:sans-serif; background:#f8d7da; color:#721c24; border:1px solid #f5c6cb; border-radius:5px;'>
-            <h3>💥 Error Crítico Detectado 💥</h3>
-            <p><strong>Mensaje:</strong> " . $e->getMessage() . "</p>
-            <p><strong>Archivo:</strong> " . $e->getFile() . "</p>
-            <p><strong>Línea:</strong> " . $e->getLine() . "</p>
-        </div>");
-}
-?>
+<?php include __DIR__ . '/../../templates/private-footer.php'; } catch (\Throwable $e) { die("<div style='padding:20px; font-family:sans-serif; background:#f8d7da; color:#721c24; border:1px solid #f5c6cb; border-radius:5px;'><h3>💥 Error Crítico Detectado 💥</h3><p><strong>Mensaje:</strong> " . $e->getMessage() . "</p><p><strong>Línea:</strong> " . $e->getLine() . "</p></div>"); } ?>

@@ -9,16 +9,16 @@ $headerPath = $projectRoot . '/templates/private-header.php';
 $footerPath = $projectRoot . '/templates/private-footer.php';
 
 $currentUser = $_SESSION['user'] ?? [];
-
 $displayName = trim((string)($currentUser['display_name'] ?? $currentUser['name'] ?? 'Administrador'));
 $role = trim((string)($currentUser['role'] ?? 'admin'));
+$isAdmin = in_array(mb_strtolower($role, 'UTF-8'), ['admin', 'administrador'], true);
 
 $pageTitle = 'Crear curso';
 $pageSubtitle = 'Alta de asignaturas, asignación de profesorado y matrícula de alumnos.';
 $pageStylesheet = '/assets/css/admin-create-course.css';
 $currentSection = 'create-course';
-$userName = $displayName;
-$userRole = $role === 'admin' ? 'Administrador' : ucfirst($role);
+$userName = $displayName !== '' ? $displayName : 'Administrador';
+$userRole = $isAdmin ? 'Administrador' : ucfirst($role);
 
 $teachers = [];
 $students = [];
@@ -53,7 +53,7 @@ if (!file_exists($configPath)) {
                 WHERE u.active = 1
                 ORDER BY u.display_name ASC, u.username ASC
             ");
-            $teachers = $teachersStmt->fetchAll();
+            $teachers = $teachersStmt->fetchAll(PDO::FETCH_ASSOC);
 
             $studentsStmt = $pdo->query("
                 SELECT st.id, u.display_name, u.username
@@ -62,7 +62,7 @@ if (!file_exists($configPath)) {
                 WHERE u.active = 1
                 ORDER BY u.display_name ASC, u.username ASC
             ");
-            $students = $studentsStmt->fetchAll();
+            $students = $studentsStmt->fetchAll(PDO::FETCH_ASSOC);
         } catch (Throwable $e) {
             $errors[] = $e->getMessage();
         }
@@ -78,30 +78,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($errors)) {
     $teacherId = trim((string)($_POST['teacher_id'] ?? ''));
     $selectedStudents = array_map('intval', $_POST['student_ids'] ?? []);
 
-    if ($role !== 'admin') {
+    if (!$isAdmin) {
         $errors[] = 'Solo un administrador puede crear cursos.';
     }
-
     if ($subjectName === '') {
         $errors[] = 'El nombre de la asignatura es obligatorio.';
     }
-
     if ($subjectCode === '') {
         $errors[] = 'El código de la asignatura es obligatorio.';
     }
-
     if ($groupName === '') {
         $errors[] = 'El grupo es obligatorio.';
     }
-
     if ($academicYear === '') {
         $errors[] = 'El año académico es obligatorio.';
     }
-
     if ($teacherId === '' || !ctype_digit($teacherId)) {
         $errors[] = 'Debes seleccionar un profesor.';
     }
-
     if (empty($selectedStudents)) {
         $errors[] = 'Debes seleccionar al menos un alumno.';
     }
@@ -112,16 +106,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($errors)) {
 
             $subjectStmt = $pdo->prepare("SELECT id FROM subjects WHERE code = :code LIMIT 1");
             $subjectStmt->execute([':code' => $subjectCode]);
-            $existingSubject = $subjectStmt->fetch();
+            $existingSubject = $subjectStmt->fetch(PDO::FETCH_ASSOC);
 
             if ($existingSubject) {
-                $subjectId = (int)$existingSubject['id'];
+                $subjectId = (int) $existingSubject['id'];
                 $updateSubjectStmt = $pdo->prepare("UPDATE subjects SET name = :name WHERE id = :id");
-                $updateSubjectStmt->execute([':name' => $subjectName, ':id' => $subjectId]);
+                $updateSubjectStmt->execute([
+                    ':name' => $subjectName,
+                    ':id' => $subjectId,
+                ]);
             } else {
                 $insertSubjectStmt = $pdo->prepare("INSERT INTO subjects (name, code) VALUES (:name, :code)");
-                $insertSubjectStmt->execute([':name' => $subjectName, ':code' => $subjectCode]);
-                $subjectId = (int)$pdo->lastInsertId();
+                $insertSubjectStmt->execute([
+                    ':name' => $subjectName,
+                    ':code' => $subjectCode,
+                ]);
+                $subjectId = (int) $pdo->lastInsertId();
             }
 
             $insertCourseStmt = $pdo->prepare("
@@ -130,14 +130,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($errors)) {
             ");
             $insertCourseStmt->execute([
                 ':subject_id' => $subjectId,
-                ':teacher_id' => (int)$teacherId,
+                ':teacher_id' => (int) $teacherId,
                 ':code' => $subjectCode,
                 ':group_name' => $groupName,
                 ':academic_year' => $academicYear,
                 ':description' => $description !== '' ? $description : null,
             ]);
 
-            $courseId = (int)$pdo->lastInsertId();
+            $courseId = (int) $pdo->lastInsertId();
 
             $insertEnrollmentStmt = $pdo->prepare("
                 INSERT INTO enrollments (student_id, course_id, status)
@@ -181,6 +181,7 @@ include $headerPath;
             <h2>Crear curso</h2>
             <p>Da de alta una asignatura, asigna profesorado y matricula alumnos desde una sola pantalla.</p>
         </div>
+
         <div class="admin-hero__stats">
             <div class="admin-stat">
                 <strong><?= count($teachers) ?></strong>
@@ -206,7 +207,7 @@ include $headerPath;
                 <strong>No se pudo guardar el curso:</strong>
                 <ul>
                     <?php foreach ($errors as $error): ?>
-                        ><?= htmlspecialchars($error) ?></li>
+                        <li><?= htmlspecialchars($error) ?></li>
                     <?php endforeach; ?>
                 </ul>
             </div>
@@ -220,39 +221,39 @@ include $headerPath;
 
         <form method="POST" action="">
             <div class="form-grid">
-                abel>
+                <label>
                     <span>Nombre de la asignatura</span>
                     <input type="text" name="subject_name" value="<?= htmlspecialchars($subjectName) ?>" required>
                 </label>
 
-                abel>
+                <label>
                     <span>Código de la asignatura</span>
                     <input type="text" name="subject_code" value="<?= htmlspecialchars($subjectCode) ?>" required>
                 </label>
 
-                abel>
+                <label>
                     <span>Grupo</span>
                     <input type="text" name="group_name" value="<?= htmlspecialchars($groupName) ?>" required>
                 </label>
 
-                abel>
+                <label>
                     <span>Año académico</span>
                     <input type="text" name="academic_year" value="<?= htmlspecialchars($academicYear) ?>" required>
                 </label>
 
-                abel class="form-grid__full">
+                <label class="form-grid__full">
                     <span>Profesor asignado</span>
                     <select name="teacher_id" required>
                         <option value="">Selecciona un profesor</option>
                         <?php foreach ($teachers as $teacher): ?>
-                            <option value="<?= (int)$teacher['id'] ?>" <?= $teacherId === (string)$teacher['id'] ? 'selected' : '' ?>>
+                            <option value="<?= (int) $teacher['id'] ?>" <?= $teacherId === (string) $teacher['id'] ? 'selected' : '' ?>>
                                 <?= htmlspecialchars($teacher['display_name'] . ' (' . $teacher['username'] . ')') ?>
                             </option>
                         <?php endforeach; ?>
                     </select>
                 </label>
 
-                abel class="form-grid__full">
+                <label class="form-grid__full">
                     <span>Descripción</span>
                     <textarea name="description" rows="4"><?= htmlspecialchars($description) ?></textarea>
                 </label>
@@ -269,12 +270,12 @@ include $headerPath;
                         <p>No hay alumnos disponibles para matricular.</p>
                     <?php else: ?>
                         <?php foreach ($students as $student): ?>
-                            abel class="student-option">
+                            <label class="student-option">
                                 <input
                                     type="checkbox"
                                     name="student_ids[]"
-                                    value="<?= (int)$student['id'] ?>"
-                                    <?= in_array((int)$student['id'], $selectedStudents, true) ? 'checked' : '' ?>
+                                    value="<?= (int) $student['id'] ?>"
+                                    <?= in_array((int) $student['id'], $selectedStudents, true) ? 'checked' : '' ?>
                                 >
                                 <span><?= htmlspecialchars($student['display_name'] . ' (' . $student['username'] . ')') ?></span>
                             </label>
@@ -293,9 +294,9 @@ include $headerPath;
         <section class="side-card">
             <h3>Flujo recomendado</h3>
             <ul>
-                ><a href="/admin/cursos.php">Ver cursos</a></li>
-                ><a href="/admin/crear-curso.php">Crear nuevo curso</a></li>
-                ><a href="/admin/usuarios.php">Gestionar usuarios</a></li>
+                <li><a href="/admin/cursos.php">Ver cursos</a></li>
+                <li><a href="/admin/crear-curso.php">Crear nuevo curso</a></li>
+                <li><a href="/admin/usuarios.php">Gestionar usuarios</a></li>
             </ul>
         </section>
     </aside>

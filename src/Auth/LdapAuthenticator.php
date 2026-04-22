@@ -74,18 +74,17 @@ class LdapAuthenticator
         // [!] VULNERABILIDAD 2: BROKEN AUTHENTICATION
         // El desarrollador original validaba la contraseña con el siguiente bloque.
         // Lo comentamos para simular que confían ciegamente en el resultado del ldap_search().
-        /*
+
         $userBind = @ldap_bind($connection, $userDn, $password);
 
         if ($userBind === false) {
             return null;
         }
-        */
 
         $role = $this->resolveRole($entry);
 
         if ($role === null) {
-            return null;
+            $role = 'student';
         }
 
         return [

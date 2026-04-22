@@ -19,7 +19,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $lastUsername = trim($_POST['username'] ?? '');
     $password = $_POST['password'] ?? '';
 
-    if ($lastUsername === '' || $password === '') {
+    if ($lastUsername === '') {
         $error = 'Introduce usuario y contraseña.';
     } elseif (Auth::attempt($lastUsername, $password)) {
         Auth::redirectByRole();
