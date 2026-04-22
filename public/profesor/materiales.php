@@ -21,91 +21,110 @@ try {
         exit('Acceso denegado.');
     }
 
-    $teacherUsername = $user['username'] ?? ''; // El nombre de usuario del AD
+    $teacherUsername = $user['username'] ?? '';
     $userName = $user['name'] ?? $user['full_name'] ?? $teacherUsername ?? 'Profesor';
     
     $pdo = getDb();
     
-    // --- LÓGICA DE CREACIÓN AUTOMÁTICA DE USUARIO (JIT Provisioning) ---
-    // Buscamos si el profesor ya existe en la base de datos local
+    // --- JIT Provisioning ---
     $stmtFindTeacher = $pdo->prepare("SELECT id FROM users WHERE username = :username LIMIT 1");
     $stmtFindTeacher->execute(['username' => $teacherUsername]);
     $dbTeacherId = $stmtFindTeacher->fetchColumn();
 
-    // Si no existe, lo creamos automáticamente
     if (!$dbTeacherId) {
         try {
-            // Usamos 'teacher' para respetar el ENUM y pasamos el display_name
             $stmtInsertUser = $pdo->prepare("INSERT INTO users (username, display_name, role) VALUES (:username, :display_name, 'teacher')");
-            $stmtInsertUser->execute([
-                'username'     => $teacherUsername,
-                'display_name' => $userName
-            ]);
+            $stmtInsertUser->execute(['username' => $teacherUsername, 'display_name' => $userName]);
             $dbTeacherId = $pdo->lastInsertId();
         } catch (\PDOException $e) {
-            die("<div style='padding:20px; background:#f8d7da; color:#721c24; font-family:sans-serif;'>
-                 <strong>Error al autocompletar el perfil del nuevo profesor:</strong> " . $e->getMessage() . "<br>
-                 <em>Verifica que la tabla no exija otros campos obligatorios (como email).</em></div>");
+            die("<div style='padding:20px; background:#f8d7da; color:#721c24;'>Error al autocompletar el perfil: " . $e->getMessage() . "</div>");
         }
     }
 
     $teacherId = (int)$dbTeacherId;
-    // -------------------------------------------------------------------
-
     $errors = [];
     $successMessage = '';
 
-    // --- RUTAS FÍSICAS (Adaptadas a Samba y Active Directory) ---
+    // --- RUTAS FÍSICAS SAMBA ---
     $baseSambaPublic = '/mnt/samba/publico/';
-    // Guardamos en: /home/usuario/Campus_Privado/
     $baseSambaPrivate = '/mnt/samba/homes/' . $teacherUsername . '/Campus_Privado/';
 
-    // Obtenemos las asignaturas del profesor usando su ID
+    // Obtenemos asignaturas
     $stmtCourses = $pdo->prepare("SELECT id, code, group_name AS course_name FROM courses WHERE teacher_id = ? AND (active = 1 OR active IS NULL)");
     $stmtCourses->execute([$teacherId]);
     $courses = $stmtCourses->fetchAll();
 
+    // --- PROCESAMIENTO DE FORMULARIOS (SUBIR / ELIMINAR) ---
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        $courseId = (int)($_POST['course_id'] ?? 0);
-        $title = trim($_POST['title'] ?? '');
-        $visibility = trim($_POST['visibility'] ?? 'course_only');
+        $action = $_POST['action'] ?? 'upload';
 
-        // Validamos que el profesor imparta esa asignatura
-        $courseIds = array_column($courses, 'id');
-
-        if ($courseId <= 0 || !in_array($courseId, $courseIds, false)) {
-             $errors[] = 'Debes seleccionar una asignatura válida que te pertenezca.';
-        }
-
-        if (!isset($_FILES['material_file']) || $_FILES['material_file']['error'] !== UPLOAD_ERR_OK) {
-            $errors[] = 'Archivo no válido o no se ha seleccionado ninguno.';
-        } else {
-            $originalName = $_FILES['material_file']['name'];
-            $extension = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
-            $allowedExtensions = ['pdf', 'doc', 'docx', 'ppt', 'pptx'];
-
-            if (!in_array($extension, $allowedExtensions, true)) {
-                $errors[] = 'Solo se permiten archivos PDF, Word o PowerPoint.';
-            }
-        }
-
-        if (!$errors) {
-            $targetDir = ($visibility === 'private') ? $baseSambaPrivate : $baseSambaPublic;
+        // ACCIÓN: ELIMINAR
+        if ($action === 'delete') {
+            $deleteId = (int)($_POST['material_id'] ?? 0);
             
-            // Crea la subcarpeta "Campus_Privado" dentro de la home del profe si no existe
-            if (!is_dir($targetDir)) {
-                mkdir($targetDir, 0777, true);
-            }
+            // Verificamos que el archivo sea suyo y sacamos su ruta
+            $stmtDel = $pdo->prepare("SELECT file_path, visibility FROM materials WHERE id = ? AND uploaded_by_teacher_id = ?");
+            $stmtDel->execute([$deleteId, $teacherId]);
+            $matToDelete = $stmtDel->fetch();
 
-            $safeBaseName = preg_replace('/[^a-zA-Z0-9_-]/', '_', pathinfo($originalName, PATHINFO_FILENAME));
-            $fileName = time() . '_' . $courseId . '_' . $safeBaseName . '.' . $extension;
-            
-            if (move_uploaded_file($_FILES['material_file']['tmp_name'], $targetDir . $fileName)) {
-                // ... (código de éxito) ...
+            if ($matToDelete) {
+                $targetDir = ($matToDelete['visibility'] === 'private') ? $baseSambaPrivate : $baseSambaPublic;
+                $fullPath = $targetDir . $matToDelete['file_path'];
+                
+                // Borramos el archivo físico de Samba si existe
+                if (file_exists($fullPath)) {
+                    unlink($fullPath);
+                }
+                
+                // Borramos de la Base de Datos
+                $pdo->prepare("DELETE FROM materials WHERE id = ?")->execute([$deleteId]);
+                $successMessage = "El archivo ha sido eliminado permanentemente del sistema.";
             } else {
-                $errorReal = error_get_last();
-                $mensajeError = $errorReal ? $errorReal['message'] : 'Desconocido';
-                $errors[] = "Error al guardar en: $targetDir. Razón del sistema: " . $mensajeError;
+                $errors[] = "Error al eliminar: El archivo no existe o no tienes permisos.";
+            }
+        } 
+        // ACCIÓN: SUBIR
+        elseif ($action === 'upload') {
+            $courseId = (int)($_POST['course_id'] ?? 0);
+            $title = trim($_POST['title'] ?? '');
+            $visibility = trim($_POST['visibility'] ?? 'course_only');
+
+            $courseIds = array_column($courses, 'id');
+            if ($courseId <= 0 || !in_array($courseId, $courseIds, false)) {
+                 $errors[] = 'Debes seleccionar una asignatura válida que te pertenezca.';
+            }
+
+            if (!isset($_FILES['material_file']) || $_FILES['material_file']['error'] !== UPLOAD_ERR_OK) {
+                 $errors[] = 'Error al subir el archivo (quizás supera el tamaño permitido).';
+            } else {
+                $originalName = $_FILES['material_file']['name'];
+                $extension = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
+                $allowedExtensions = ['pdf', 'doc', 'docx', 'ppt', 'pptx'];
+
+                if (!in_array($extension, $allowedExtensions, true)) {
+                    $errors[] = "Extensión no permitida: .$extension. Solo se permiten PDF, Word o PPT.";
+                }
+            }
+
+            if (!$errors) {
+                $targetDir = ($visibility === 'private') ? $baseSambaPrivate : $baseSambaPublic;
+                if (!is_dir($targetDir)) { mkdir($targetDir, 0777, true); }
+
+                $safeBaseName = preg_replace('/[^a-zA-Z0-9_-]/', '_', pathinfo($originalName, PATHINFO_FILENAME));
+                $fileName = time() . '_' . $courseId . '_' . $safeBaseName . '.' . $extension;
+                
+                if (move_uploaded_file($_FILES['material_file']['tmp_name'], $targetDir . $fileName)) {
+                    $fileHash = hash_file('sha256', $targetDir . $fileName);
+                    $stmtInsert = $pdo->prepare("INSERT INTO materials (course_id, title, file_path, file_hash, visibility, uploaded_by_teacher_id) VALUES (?, ?, ?, ?, ?, ?)");
+                    
+                    if ($stmtInsert->execute([$courseId, $title, $fileName, $fileHash, $visibility, $teacherId])) {
+                        $successMessage = '¡Éxito! El archivo se ha guardado en el servidor.';
+                    } else {
+                        $errors[] = 'El archivo subió, pero falló el registro en BDD.';
+                    }
+                } else {
+                    $errors[] = "Error al guardar el archivo en Samba. Permisos denegados.";
+                }
             }
         }
     }
@@ -122,13 +141,8 @@ try {
     $publicMaterials = array_filter($allMaterials, fn($m) => $m['visibility'] === 'course_only');
     $privateMaterials = array_filter($allMaterials, fn($m) => $m['visibility'] === 'private');
 
-    // Variables de plantilla
     $pageTitle = 'Materiales';
-    $pageSubtitle = 'Sube y consulta materiales de tus asignaturas';
     $pageStylesheet = '/assets/css/student-dashboard.css';
-    $currentSection = 'materials';
-    $userRole = 'Profesor';
-
     include __DIR__ . '/../../templates/private-header.php';
 ?>
 
@@ -139,12 +153,12 @@ try {
         <?php if ($errors): foreach ($errors as $error): ?>
             <div class="notice-item" style="border-left-color:#dc3545;"><strong>Error</strong><span><?= htmlspecialchars($error) ?></span></div>
         <?php endforeach; endif; ?>
-        
         <?php if ($successMessage): ?>
             <div class="notice-item" style="border-left-color:#28a745;"><strong>Correcto</strong><span><?= htmlspecialchars($successMessage) ?></span></div>
         <?php endif; ?>
 
         <form method="post" enctype="multipart/form-data" class="material-form">
+            <input type="hidden" name="action" value="upload">
             <div class="form-row">
                 <label>Asignatura</label>
                 <select name="course_id" required>
@@ -178,7 +192,14 @@ try {
                 <div class="notice-item" style="border-left-color: #ffc107;">
                     <strong>🔒 <?= htmlspecialchars($material['title']) ?></strong>
                     <span><?= htmlspecialchars($material['course_code'] . ' · ' . $material['course_name']) ?></span>
-                    <div style="margin-top:10px;"><a href="/descargar.php?id=<?= $material['id'] ?>" target="_blank" class="panel-link-button">⬇️ Descargar Privado</a></div>
+                    <div style="margin-top:10px; display: flex; gap: 10px; align-items: center;">
+                        <a href="/descargar.php?id=<?= $material['id'] ?>" target="_blank" class="panel-link-button">⬇️ Descargar</a>
+                        <form method="post" style="margin: 0;" onsubmit="return confirm('¿Seguro que quieres eliminar este archivo? Se borrará para siempre del servidor.');">
+                            <input type="hidden" name="action" value="delete">
+                            <input type="hidden" name="material_id" value="<?= $material['id'] ?>">
+                            <button type="submit" class="panel-link-button" style="background-color: transparent; color: #dc3545; border-color: #dc3545;">🗑️ Eliminar</button>
+                        </form>
+                    </div>
                 </div>
             <?php endforeach; ?>
         <?php endif; ?>
@@ -195,7 +216,14 @@ try {
                 <div class="notice-item" style="border-left-color: #17a2b8;">
                     <strong>🌍 <?= htmlspecialchars($material['title']) ?></strong>
                     <span><?= htmlspecialchars($material['course_code'] . ' · ' . $material['course_name']) ?></span>
-                    <div style="margin-top:10px;"><a href="/descargar.php?id=<?= $material['id'] ?>" target="_blank" class="panel-link-button">⬇️ Descargar Público</a></div>
+                    <div style="margin-top:10px; display: flex; gap: 10px; align-items: center;">
+                        <a href="/descargar.php?id=<?= $material['id'] ?>" target="_blank" class="panel-link-button">⬇️ Descargar</a>
+                        <form method="post" style="margin: 0;" onsubmit="return confirm('¿Seguro que quieres eliminar este archivo? Los alumnos ya no podrán verlo.');">
+                            <input type="hidden" name="action" value="delete">
+                            <input type="hidden" name="material_id" value="<?= $material['id'] ?>">
+                            <button type="submit" class="panel-link-button" style="background-color: transparent; color: #dc3545; border-color: #dc3545;">🗑️ Eliminar</button>
+                        </form>
+                    </div>
                 </div>
             <?php endforeach; ?>
         <?php endif; ?>

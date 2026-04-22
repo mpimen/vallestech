@@ -13,20 +13,28 @@ $materialId = (int)($_GET['id'] ?? 0);
 if ($materialId <= 0) die('ID de material inválido.');
 
 $pdo = getDb();
+$username = $user['username'] ?? '';
+
+// --- NUEVO: Buscamos el ID real en la BDD local basándonos en el AD ---
+$stmtUser = $pdo->prepare("SELECT id FROM users WHERE username = ? LIMIT 1");
+$stmtUser->execute([$username]);
+$localUserId = $stmtUser->fetchColumn();
+
+// Obtenemos los datos del material
 $stmt = $pdo->prepare("SELECT title, file_path, visibility, uploaded_by_teacher_id FROM materials WHERE id = ?");
 $stmt->execute([$materialId]);
 $material = $stmt->fetch();
 
 if (!$material) { die('El material no existe en la base de datos.'); }
 
-// --- RESOLUCIÓN DE RUTAS SEGÚN EL ACTIVE DIRECTORY ---
+// --- RESOLUCIÓN DE RUTAS ---
 if ($material['visibility'] === 'private') {
-    // Verificación de seguridad
-    if ($user['id'] != $material['uploaded_by_teacher_id']) {
+    // Verificación de seguridad usando el ID local que acabamos de sacar
+    if (!$localUserId || $localUserId != $material['uploaded_by_teacher_id']) {
         die("No tienes permiso para acceder a este archivo privado.");
     }
     // Buscamos en la Home del profesor logueado
-    $filePath = '/mnt/samba/homes/' . $user['username'] . '/Campus_Privado/' . $material['file_path'];
+    $filePath = '/mnt/samba/homes/' . $username . '/Campus_Privado/' . $material['file_path'];
 } else {
     // Carpeta pública centralizada
     $filePath = '/mnt/samba/publico/' . $material['file_path'];

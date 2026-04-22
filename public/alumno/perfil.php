@@ -26,6 +26,9 @@ $currentSection = 'profile';
 $userName = $fullName !== '' ? $fullName : 'Usuario';
 $userRole = $role !== '' ? $role : 'Alumno';
 
+$flashMessage = $_SESSION['profile_flash'] ?? null;
+unset($_SESSION['profile_flash']);
+
 include __DIR__ . '/../../templates/private-header.php';
 ?>
 
@@ -63,6 +66,22 @@ include __DIR__ . '/../../templates/private-header.php';
                 <h2>Datos básicos</h2>
             </div>
         </div>
+
+        <?php if ($flashMessage): ?>
+            <div class="profile-alert">
+                <?= htmlspecialchars($flashMessage) ?>
+            </div>
+        <?php endif; ?>
+
+        <form class="profile-upload-form" action="/student/profile/upload-file.php" method="POST" enctype="multipart/form-data">
+            <div class="form-group">
+                <label for="profile_file">Subir archivo</label>
+                <input type="file" name="profile_file" id="profile_file" required>
+                <small>Puedes subir un archivo desde tu perfil.</small>
+            </div>
+
+            <button type="submit" class="profile-upload-button">Subir archivo</button>
+        </form>
 
         <div class="form-grid">
             <div class="form-group">
