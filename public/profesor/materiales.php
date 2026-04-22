@@ -35,17 +35,17 @@ try {
     // Si no existe, lo creamos automáticamente
     if (!$dbTeacherId) {
         try {
-            // Añadimos el campo display_name a la consulta SQL
-            $stmtInsertUser = $pdo->prepare("INSERT INTO users (username, display_name, role) VALUES (:username, :display_name, 'profesor')");
+            // Usamos 'teacher' para respetar el ENUM y pasamos el display_name
+            $stmtInsertUser = $pdo->prepare("INSERT INTO users (username, display_name, role) VALUES (:username, :display_name, 'teacher')");
             $stmtInsertUser->execute([
                 'username'     => $teacherUsername,
-                'display_name' => $userName // Esta variable ya la definimos arriba
+                'display_name' => $userName
             ]);
             $dbTeacherId = $pdo->lastInsertId();
         } catch (\PDOException $e) {
             die("<div style='padding:20px; background:#f8d7da; color:#721c24; font-family:sans-serif;'>
                  <strong>Error al autocompletar el perfil del nuevo profesor:</strong> " . $e->getMessage() . "<br>
-                 <em>Verifica que la tabla no exija otros campos obligatorios (como email o nombre).</em></div>");
+                 <em>Verifica que la tabla no exija otros campos obligatorios (como email).</em></div>");
         }
     }
 
@@ -60,7 +60,7 @@ try {
     // Guardamos en: /home/usuario/Campus_Privado/
     $baseSambaPrivate = '/mnt/samba/homes/' . $teacherUsername . '/Campus_Privado/';
 
-    // Obtenemos las asignaturas del profesor usando su nuevo ID
+    // Obtenemos las asignaturas del profesor usando su ID
     $stmtCourses = $pdo->prepare("SELECT id, code, group_name AS course_name FROM courses WHERE teacher_id = ? AND (active = 1 OR active IS NULL)");
     $stmtCourses->execute([$teacherId]);
     $courses = $stmtCourses->fetchAll();
@@ -70,8 +70,15 @@ try {
         $title = trim($_POST['title'] ?? '');
         $visibility = trim($_POST['visibility'] ?? 'course_only');
 
+        // Validamos que el profesor imparta esa asignatura
+        $courseIds = array_column($courses, 'id');
+
+        if ($courseId <= 0 || !in_array($courseId, $courseIds, false)) {
+             $errors[] = 'Debes seleccionar una asignatura válida que te pertenezca.';
+        }
+
         if (!isset($_FILES['material_file']) || $_FILES['material_file']['error'] !== UPLOAD_ERR_OK) {
-            $errors[] = 'Archivo no válido.';
+            $errors[] = 'Archivo no válido o no se ha seleccionado ninguno.';
         } else {
             $originalName = $_FILES['material_file']['name'];
             $extension = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
@@ -94,12 +101,11 @@ try {
             $fileName = time() . '_' . $courseId . '_' . $safeBaseName . '.' . $extension;
             
             if (move_uploaded_file($_FILES['material_file']['tmp_name'], $targetDir . $fileName)) {
-                $fileHash = hash_file('sha256', $targetDir . $fileName);
-                $stmtInsert = $pdo->prepare("INSERT INTO materials (course_id, title, file_path, file_hash, visibility, uploaded_by_teacher_id) VALUES (?, ?, ?, ?, ?, ?)");
-                $stmtInsert->execute([$courseId, $title, $fileName, $fileHash, $visibility, $teacherId]);
-                $successMessage = 'Material subido correctamente a tu recurso de red.';
+                // ... (código de éxito) ...
             } else {
-                $errors[] = 'Error al escribir en Samba. Verifica que la home de este usuario exista en el servidor y los permisos de montaje.';
+                $errorReal = error_get_last();
+                $mensajeError = $errorReal ? $errorReal['message'] : 'Desconocido';
+                $errors[] = "Error al guardar en: $targetDir. Razón del sistema: " . $mensajeError;
             }
         }
     }
