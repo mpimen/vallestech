@@ -1,19 +1,24 @@
 <?php
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
 $pageTitle = 'Crear usuario';
-$pageSubtitle = 'Alta manual de alumnos y profesores en LDAP.';
+$pageSubtitle = 'Alta manual de alumnos y profesores en LDAP y base de datos.';
 $pageStylesheet = '/assets/css/admin-create-user.css';
 $currentSection = 'create-user';
-$userName = 'Laura Gómez';
-$userRole = 'Admin';
+$userName = $_SESSION['user']['display_name'] ?? $_SESSION['user']['username'] ?? 'Laura Gómez';
+$userRole = $_SESSION['user']['role'] ?? 'Admin';
 
 $errors = [];
 $success = '';
 
 $form = [
-    'name' => '',
+    'name'     => '',
     'username' => '',
+    'email'    => '',
     'password' => '',
-    'role' => '',
+    'role'     => '',
 ];
 
 $ldapConfigPath = dirname(__DIR__, 2) . '/config/ldaps.php';
@@ -42,9 +47,9 @@ function splitFullName(string $fullName): array
         return ['', ''];
     }
 
-    $parts = explode(' ', $fullName);
+    $parts    = explode(' ', $fullName);
     $givenName = array_shift($parts) ?? '';
-    $sn = trim(implode(' ', $parts));
+    $sn        = trim(implode(' ', $parts));
 
     if ($sn === '') {
         $sn = $givenName;
@@ -55,7 +60,6 @@ function splitFullName(string $fullName): array
 
 function ldapConnectFromConfig(array $config)
 {
-    // Ignorar validación certificado autofirmado - debe ir antes de ldap_connect
     ldap_set_option(null, LDAP_OPT_X_TLS_REQUIRE_CERT, LDAP_OPT_X_TLS_NEVER);
 
     $connection = ldap_connect('ldaps://' . $config['host'], (int) $config['port']);
@@ -96,6 +100,7 @@ function buildUserPrincipalName(string $username, string $baseDn): string
 {
     $domain = strtolower(str_replace(['DC=', ','], ['', '.'], $baseDn));
     $domain = preg_replace('/\.+/', '.', trim($domain, '.'));
+
     return buildSamAccountName($username) . '@' . $domain;
 }
 
@@ -104,29 +109,107 @@ function generateUnicodePassword(string $password): string
     return mb_convert_encoding('"' . $password . '"', 'UTF-16LE');
 }
 
+function createDatabaseConnection(): PDO
+{
+    $host    = '10.30.5.44';
+    $port    = 3306;
+    $dbname  = 'campus';
+    $user    = 'campus_app';
+    $pass    = 'cibere13app';
+    $charset = 'utf8mb4';
+
+    $dsn = "mysql:host={$host};port={$port};dbname={$dbname};charset={$charset}";
+
+    return new PDO($dsn, $user, $pass, [
+        PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        PDO::ATTR_EMULATE_PREPARES   => false,
+    ]);
+}
+
+function ensureUserDoesNotExistInDatabase(PDO $pdo, string $username, string $email): void
+{
+    $stmt = $pdo->prepare('SELECT id FROM users WHERE username = :username LIMIT 1');
+    $stmt->execute(['username' => $username]);
+
+    if ($stmt->fetch()) {
+        throw new RuntimeException('Ese nombre de usuario ya existe en la base de datos.');
+    }
+
+    if ($email !== '') {
+        $stmt = $pdo->prepare('SELECT id FROM users WHERE email = :email LIMIT 1');
+        $stmt->execute(['email' => $email]);
+
+        if ($stmt->fetch()) {
+            throw new RuntimeException('Ese correo electrónico ya existe en la base de datos.');
+        }
+    }
+}
+
+function insertUserIntoDatabase(PDO $pdo, array $form, string $userDn): void
+{
+    $sql = 'INSERT INTO users (
+                username,
+                display_name,
+                email,
+                role,
+                ldap_dn,
+                active
+            ) VALUES (
+                :username,
+                :display_name,
+                :email,
+                :role,
+                :ldap_dn,
+                :active
+            )';
+
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute([
+        'username'     => buildSamAccountName($form['username']),
+        'display_name' => trim($form['name']),
+        'email'        => $form['email'] !== '' ? $form['email'] : null,
+        'role'         => $form['role'],
+        'ldap_dn'      => $userDn,
+        'active'       => 1,
+    ]);
+
+    $userId = (int) $pdo->lastInsertId();
+
+    if ($form['role'] === 'student') {
+        $pdo->prepare('INSERT INTO students (user_id) VALUES (:user_id)')
+            ->execute(['user_id' => $userId]);
+    } elseif ($form['role'] === 'teacher') {
+        $pdo->prepare('INSERT INTO teachers (user_id) VALUES (:user_id)')
+            ->execute(['user_id' => $userId]);
+    }
+}
+
 function createAdUser($ldap, array $config, array $form): string
 {
     [$givenName, $sn] = splitFullName($form['name']);
-    $cn = trim($form['name']);
-    $samAccountName = buildSamAccountName($form['username']);
+    $cn               = trim($form['name']);
+    $samAccountName   = buildSamAccountName($form['username']);
     $userPrincipalName = buildUserPrincipalName($form['username'], $config['base_dn']);
-    $userDn = buildUserDn($cn, $form['role'], $config['base_dn']);
+    $userDn           = buildUserDn($cn, $form['role'], $config['base_dn']);
 
     $searchFilter = sprintf('(sAMAccountName=%s)', ldap_escape($samAccountName, '', LDAP_ESCAPE_FILTER));
     $search = @ldap_search($ldap, $config['base_dn'], $searchFilter, ['dn']);
+
     if ($search !== false && ldap_count_entries($ldap, $search) > 0) {
         throw new RuntimeException('Ese nombre de usuario ya existe en Active Directory.');
     }
 
     $entry = [
-        'cn' => $cn,
-        'displayName' => $cn,
-        'givenName' => $givenName,
-        'sn' => $sn,
-        'objectClass' => ['top', 'person', 'organizationalPerson', 'user'],
-        'sAMAccountName' => $samAccountName,
+        'cn'               => $cn,
+        'displayName'      => $cn,
+        'givenName'        => $givenName,
+        'sn'               => $sn,
+        'mail'             => $form['email'],
+        'objectClass'      => ['top', 'person', 'organizationalPerson', 'user'],
+        'sAMAccountName'   => $samAccountName,
         'userPrincipalName' => $userPrincipalName,
-        'name' => $cn,
+        'name'             => $cn,
     ];
 
     if (!@ldap_add($ldap, $userDn, $entry)) {
@@ -134,7 +217,7 @@ function createAdUser($ldap, array $config, array $form): string
     }
 
     if (!@ldap_mod_replace($ldap, $userDn, [
-        'unicodePwd' => generateUnicodePassword($form['password'])
+        'unicodePwd' => generateUnicodePassword($form['password']),
     ])) {
         @ldap_delete($ldap, $userDn);
         throw new RuntimeException('Usuario creado pero no se pudo asignar la contraseña: ' . ldap_error($ldap));
@@ -142,7 +225,7 @@ function createAdUser($ldap, array $config, array $form): string
 
     if (!@ldap_mod_replace($ldap, $userDn, [
         'userAccountControl' => '512',
-        'pwdLastSet' => '-1',
+        'pwdLastSet'         => '-1',
     ])) {
         @ldap_delete($ldap, $userDn);
         throw new RuntimeException('Usuario creado pero no se pudo habilitar la cuenta: ' . ldap_error($ldap));
@@ -150,6 +233,7 @@ function createAdUser($ldap, array $config, array $form): string
 
     if (!empty($config['groups'][$form['role']])) {
         $groupDn = $config['groups'][$form['role']];
+
         if (!@ldap_mod_add($ldap, $groupDn, ['member' => $userDn])) {
             @ldap_delete($ldap, $userDn);
             throw new RuntimeException('Usuario creado pero no se pudo añadir al grupo: ' . ldap_error($ldap));
@@ -160,10 +244,11 @@ function createAdUser($ldap, array $config, array $form): string
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $form['name'] = trim($_POST['name'] ?? '');
+    $form['name']     = trim($_POST['name'] ?? '');
     $form['username'] = normalizeUsername($_POST['username'] ?? '');
+    $form['email']    = trim($_POST['email'] ?? '');
     $form['password'] = $_POST['password'] ?? '';
-    $form['role'] = trim($_POST['role'] ?? '');
+    $form['role']     = trim($_POST['role'] ?? '');
 
     if ($form['name'] === '') {
         $errors['name'] = 'Introduce el nombre completo.';
@@ -175,6 +260,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors['username'] = 'Introduce el nombre de usuario.';
     } elseif (!preg_match('/^[a-zA-Z0-9._-]{3,30}$/', $form['username'])) {
         $errors['username'] = 'El usuario solo puede tener letras, números, punto, guion y guion bajo.';
+    }
+
+    if ($form['email'] !== '' && !filter_var($form['email'], FILTER_VALIDATE_EMAIL)) {
+        $errors['email'] = 'Introduce un correo electrónico válido.';
     }
 
     if ($form['password'] === '') {
@@ -195,15 +284,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $ldap = null;
 
         try {
-            $ldap = ldapConnectFromConfig($ldapConfig);
+            $pdo = createDatabaseConnection();
+            ensureUserDoesNotExistInDatabase($pdo, buildSamAccountName($form['username']), $form['email']);
+
+            $ldap   = ldapConnectFromConfig($ldapConfig);
             $userDn = createAdUser($ldap, $ldapConfig, $form);
+
+            try {
+                insertUserIntoDatabase($pdo, $form, $userDn);
+            } catch (Throwable $dbException) {
+                @ldap_delete($ldap, $userDn);
+                throw new RuntimeException('Usuario creado en Active Directory, pero no se pudo guardar en la base de datos: ' . $dbException->getMessage());
+            }
+
             $roleLabel = $form['role'] === 'teacher' ? 'Profesor' : 'Alumno';
-            $success = 'Usuario creado correctamente en Active Directory con rol ' . $roleLabel . ' y DN ' . $userDn . '.';
+            $success   = 'Usuario creado correctamente en Active Directory y base de datos con rol ' . $roleLabel . ' y DN ' . $userDn . '.';
+
             $form = [
-                'name' => '',
+                'name'     => '',
                 'username' => '',
+                'email'    => '',
                 'password' => '',
-                'role' => '',
+                'role'     => '',
             ];
         } catch (Throwable $e) {
             $errors['ldap'] = $e->getMessage();
@@ -224,7 +326,7 @@ include __DIR__ . '/../../templates/private-header.php';
             <p class="create-hero__eyebrow">Alta de cuentas</p>
             <h2>Crear nuevo usuario del campus</h2>
             <p>
-                Completa los datos mínimos y el sistema creará el usuario en tu Active Directory.
+                Completa los datos mínimos y el sistema creará el usuario en tu Active Directory y también en la base de datos.
             </p>
         </div>
 
@@ -234,8 +336,8 @@ include __DIR__ . '/../../templates/private-header.php';
                 <span>Alta individual real</span>
             </div>
             <div class="summary-pill">
-                <strong>Origen</strong>
-                <span>Config reutilizada desde ldap.php</span>
+                <strong>BD</strong>
+                <span>Registro en users + students/teachers</span>
             </div>
         </div>
     </article>
@@ -250,7 +352,7 @@ include __DIR__ . '/../../templates/private-header.php';
 
         <?php if (!empty($errors)): ?>
             <div class="info-note" style="margin-bottom: 20px; background:#fef2f2; border-color:#fecaca; color:#991b1b;">
-                Revisa los campos marcados o el mensaje de Active Directory.
+                Revisa los campos marcados o el mensaje de Active Directory/base de datos.
             </div>
         <?php endif; ?>
 
@@ -297,6 +399,20 @@ include __DIR__ . '/../../templates/private-header.php';
                 </div>
 
                 <div class="form-group">
+                    <label for="email">Correo electrónico</label>
+                    <input
+                        type="email"
+                        id="email"
+                        name="email"
+                        placeholder="laura.gomez@vallestech.local"
+                        value="<?= htmlspecialchars($form['email']) ?>"
+                    >
+                    <?php if (isset($errors['email'])): ?>
+                        <small style="color:#b91c1c;"><?= htmlspecialchars($errors['email']) ?></small>
+                    <?php endif; ?>
+                </div>
+
+                <div class="form-group">
                     <label for="password">Contraseña inicial</label>
                     <input
                         type="password"
@@ -331,10 +447,11 @@ include __DIR__ . '/../../templates/private-header.php';
     <aside class="info-card">
         <h3>Notas</h3>
         <ul>
-            <li>La conexión se carga desde <code>/config/ldap.php</code>.</li>
+            <li>La conexión se carga desde <code>/config/ldaps.php</code>.</li>
             <li>Los alumnos se crean en <code>OU=Alumnos,OU=Usuarios,OU=WebVallesTech</code>.</li>
             <li>Los profesores se crean en <code>OU=Profesores,OU=Usuarios,OU=WebVallesTech</code>.</li>
             <li>Después del alta, el usuario se añade al grupo del rol configurado en <code>groups</code>.</li>
+            <li>Además del alta en AD, se inserta en <code>users</code> y en <code>students</code> o <code>teachers</code> según el rol.</li>
         </ul>
     </aside>
 </section>

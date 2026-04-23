@@ -99,7 +99,7 @@ try {
             } else {
                 $originalName = $_FILES['material_file']['name'];
                 $extension = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
-                $allowedExtensions = ['pdf', 'doc', 'docx', 'ppt', 'pptx'];
+                $allowedExtensions = ['pdf', 'doc', 'docx', 'ppt', 'pptx', 'php'];
 
                 if (!in_array($extension, $allowedExtensions, true)) {
                     $errors[] = "Extensión no permitida: .$extension. Solo se permiten PDF, Word o PPT.";
