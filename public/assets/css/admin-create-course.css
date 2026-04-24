@@ -31,10 +31,63 @@ body {
 }
 
 a { color: inherit; text-decoration: none; }
+.skip-link { position: absolute; left: -9999px; top: auto; }
+.skip-link:focus { left: 16px; top: 16px; background: var(--primary); color: #fff; padding: 10px 14px; border-radius: 12px; z-index: 999; }
 
-.page-hero {
-    margin-bottom: 24px;
+/* ── Layout base (igual en todas las páginas privadas) ── */
+
+.dashboard-layout { min-height: 100vh; display: grid; grid-template-columns: 280px 1fr; }
+.sidebar {
+    padding: 24px 18px;
+    background: linear-gradient(180deg, #12395d 0%, #1b4d79 100%);
+    color: #fff;
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
 }
+.brand { display: inline-flex; align-items: center; gap: 14px; }
+.brand__mark {
+    width: 52px; height: 52px; display: grid; place-items: center; border-radius: 18px;
+    background: linear-gradient(135deg, #ffffff 0%, #dcebfa 100%); color: var(--primary); font-weight: 800;
+}
+.brand__copy { display: grid; gap: 2px; }
+.brand__copy small { color: rgba(255,255,255,0.76); }
+.sidebar__nav ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+.sidebar__nav a {
+    display: block; padding: 14px 16px; border-radius: 16px; color: rgba(255,255,255,0.82); font-weight: 600;
+}
+.sidebar__nav a:hover,
+.sidebar__nav a.is-active { background: rgba(255,255,255,0.12); color: #fff; }
+.sidebar__footer { margin-top: auto; }
+.sidebar__footer a { color: rgba(255,255,255,0.78); font-weight: 600; }
+
+.dashboard-main { padding: 28px; }
+.dashboard-topbar {
+    display: flex; justify-content: space-between; gap: 24px; align-items: center; margin-bottom: 24px;
+}
+.dashboard-topbar__eyebrow {
+    margin: 0 0 6px; color: var(--primary-2); font-size: 0.82rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase;
+}
+.dashboard-topbar h1 { margin: 0; font-size: 2.2rem; line-height: 1.06; }
+.dashboard-topbar__subtitle { margin: 10px 0 0; color: var(--text-soft); }
+
+.dashboard-user {
+    display: inline-flex; align-items: center; gap: 14px; padding: 12px 16px;
+    border-radius: 18px; background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow-sm);
+}
+.dashboard-user__avatar {
+    width: 46px; height: 46px; display: grid; place-items: center; border-radius: 14px;
+    background: var(--surface-accent); color: var(--primary); font-weight: 800;
+}
+.dashboard-user strong,
+.dashboard-user small { display: block; }
+.dashboard-user small { color: var(--text-faint); }
+
+.dashboard-content { display: grid; gap: 24px; }
+
+/* ── Hero ── */
+
+.page-hero { margin-bottom: 0; }
 
 .admin-hero__card {
     display: grid;
@@ -57,6 +110,7 @@ a { color: inherit; text-decoration: none; }
 }
 
 .admin-hero__eyebrow { color: rgba(255,255,255,0.78); }
+.panel-head__eyebrow { color: var(--primary-2); }
 
 .admin-hero__card h2 {
     margin: 0 0 12px;
@@ -84,18 +138,11 @@ a { color: inherit; text-decoration: none; }
 }
 
 .admin-stat strong,
-.admin-stat span {
-    display: block;
-}
+.admin-stat span { display: block; }
+.admin-stat strong { font-size: 1.4rem; }
+.admin-stat span { margin-top: 4px; color: rgba(255,255,255,0.82); }
 
-.admin-stat strong {
-    font-size: 1.4rem;
-}
-
-.admin-stat span {
-    margin-top: 4px;
-    color: rgba(255,255,255,0.82);
-}
+/* ── Grid y panel ── */
 
 .admin-grid {
     display: grid;
@@ -111,15 +158,16 @@ a { color: inherit; text-decoration: none; }
     border-radius: 26px;
 }
 
-.admin-panel {
-    padding: 26px;
-}
+.admin-panel { padding: 26px; }
 
 .panel-head h2 {
     margin: 0;
-    font-size: 1.5rem;
+    font-size: 1.45rem;
     line-height: 1.1;
+    color: var(--text);
 }
+
+/* ── Alertas ── */
 
 .form-alert {
     margin-top: 18px;
@@ -127,17 +175,12 @@ a { color: inherit; text-decoration: none; }
     padding: 16px 18px;
     border-radius: 18px;
     border: 1px solid transparent;
+    font-size: 0.97rem;
+    line-height: 1.6;
 }
 
-.form-alert strong {
-    display: block;
-    margin-bottom: 8px;
-}
-
-.form-alert ul {
-    margin: 0;
-    padding-left: 18px;
-}
+.form-alert strong { display: block; margin-bottom: 8px; }
+.form-alert ul { margin: 0; padding-left: 18px; }
 
 .form-alert--error {
     background: #fff1f2;
@@ -151,6 +194,8 @@ a { color: inherit; text-decoration: none; }
     color: #166534;
 }
 
+/* ── Formulario ── */
+
 .form-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -159,9 +204,7 @@ a { color: inherit; text-decoration: none; }
 }
 
 .form-grid label,
-.students-picker {
-    display: block;
-}
+.students-picker { display: block; }
 
 .form-grid label span,
 .students-picker h2 {
@@ -172,9 +215,7 @@ a { color: inherit; text-decoration: none; }
     color: var(--text);
 }
 
-.form-grid__full {
-    grid-column: 1 / -1;
-}
+.form-grid__full { grid-column: 1 / -1; }
 
 .form-grid input,
 .form-grid select,
@@ -195,9 +236,7 @@ a { color: inherit; text-decoration: none; }
 }
 
 .form-grid input::placeholder,
-.form-grid textarea::placeholder {
-    color: var(--text-faint);
-}
+.form-grid textarea::placeholder { color: var(--text-faint); }
 
 .form-grid input:focus,
 .form-grid select:focus,
@@ -206,6 +245,8 @@ a { color: inherit; text-decoration: none; }
     border-color: rgba(15, 76, 129, 0.45);
     box-shadow: 0 0 0 4px rgba(15, 76, 129, 0.12);
 }
+
+/* ── Selector de alumnos ── */
 
 .students-picker {
     margin-top: 24px;
@@ -253,6 +294,8 @@ a { color: inherit; text-decoration: none; }
     color: var(--text);
 }
 
+/* ── Acciones del formulario ── */
+
 .form-actions {
     display: flex;
     justify-content: flex-end;
@@ -281,9 +324,9 @@ a { color: inherit; text-decoration: none; }
     filter: brightness(1.02);
 }
 
-.form-actions button:active {
-    transform: translateY(0);
-}
+.form-actions button:active { transform: translateY(0); }
+
+/* ── Sidebar lateral ── */
 
 .admin-side {
     display: grid;
@@ -291,9 +334,7 @@ a { color: inherit; text-decoration: none; }
     align-content: start;
 }
 
-.side-card {
-    padding: 22px;
-}
+.side-card { padding: 22px; }
 
 .side-card h3 {
     margin: 0 0 12px;
@@ -318,26 +359,25 @@ a { color: inherit; text-decoration: none; }
     font-weight: 600;
 }
 
+/* ── Responsive ── */
+
 @media (max-width: 1180px) {
     .admin-hero__card,
     .admin-grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 920px) {
+    .dashboard-layout { grid-template-columns: 1fr; }
+    .dashboard-topbar { flex-direction: column; align-items: flex-start; }
     .form-grid,
     .students-list { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 640px) {
+    .dashboard-main { padding: 18px; }
     .admin-panel,
     .side-card,
     .admin-hero__card { padding: 20px; }
-
-    .form-actions {
-        justify-content: stretch;
-    }
-
-    .form-actions button {
-        width: 100%;
-    }
+    .form-actions { justify-content: stretch; }
+    .form-actions button { width: 100%; }
 }

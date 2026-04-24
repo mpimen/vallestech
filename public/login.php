@@ -39,29 +39,29 @@ include __DIR__ . '/../templates/header.php';
     <div class="auth-grid">
         <article class="card hero-panel__content">
             <div class="card__body">
-                <span class="badge">Active Directory</span>
-                <h2 class="section-title" style="margin-top: 18px;">Acceso al campus con autenticación corporativa</h2>
+                <span class="badge">Campus Virtual</span>
+                <h2 class="section-title" style="margin-top: 18px;">Tu campus,&nbsp;un solo acceso</h2>
                 <p class="section-text">
-                    Inicia sesión con tu usuario del dominio para acceder a tu panel de alumno o profesor.
+                    Inicia sesión con tu cuenta corporativa para acceder a todos tus recursos académicos.
                 </p>
 
                 <div class="kpi-grid">
                     <div class="kpi-card">
-                        <p class="kpi-card__label">Directorio</p>
-                        <p class="kpi-card__value">AD</p>
-                        <p class="kpi-card__meta">Validación centralizada contra Active Directory.</p>
+                        <p class="kpi-card__label">Alumnos</p>
+                        <p class="kpi-card__value">200+</p>
+                        <p class="kpi-card__meta">Matriculados en el campus este curso.</p>
                     </div>
 
                     <div class="kpi-card">
-                        <p class="kpi-card__label">Roles</p>
-                        <p class="kpi-card__value">2</p>
-                        <p class="kpi-card__meta">Alumno y profesor resueltos por grupos LDAP.</p>
+                        <p class="kpi-card__label">Módulos</p>
+                        <p class="kpi-card__value">12</p>
+                        <p class="kpi-card__meta">Ciclos formativos disponibles.</p>
                     </div>
 
                     <div class="kpi-card">
-                        <p class="kpi-card__label">Sesión</p>
-                        <p class="kpi-card__value">PHP</p>
-                        <p class="kpi-card__meta">Persistencia en sesión tras autenticación correcta.</p>
+                        <p class="kpi-card__label">Acceso</p>
+                        <p class="kpi-card__value">24/7</p>
+                        <p class="kpi-card__meta">Disponible desde cualquier dispositivo.</p>
                     </div>
                 </div>
             </div>
@@ -71,7 +71,7 @@ include __DIR__ . '/../templates/header.php';
             <div class="card__body">
                 <h2 class="section-title">Iniciar sesión</h2>
                 <p class="section-text">
-                    Usa tu cuenta del dominio `vallestech.local`.
+                    Usa tu cuenta del dominio <code>vallestech.local</code>.
                 </p>
 
                 <?php if ($error !== ''): ?>

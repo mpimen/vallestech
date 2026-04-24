@@ -157,22 +157,6 @@ include __DIR__ . '/../../templates/private-header.php';
             </div>
         <?php endif; ?>
     </article>
-
-    <aside class="admin-side">
-        <article class="side-card">
-            <h3>Acciones rápidas</h3>
-            <ul>
-                <li><a href="/admin/crear-curso.php">Crear nuevo curso</a></li>
-                <li><a href="/admin/usuarios.php">Gestionar usuarios</a></li>
-                <li><a href="/admin/dashboard.php">Volver al dashboard</a></li>
-            </ul>
-        </article>
-
-        <article class="side-card">
-            <h3>Resumen</h3>
-            <p>Total de cursos visibles: <?= htmlspecialchars((string) count($courses)) ?></p>
-        </article>
-    </aside>
 </section>
 
 <?php include __DIR__ . '/../../templates/private-footer.php'; ?>

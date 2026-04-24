@@ -618,3 +618,234 @@ textarea {
         min-height: 250px;
     }
 }
+
+/* ─────────────────────────────────────────
+   LOGIN / AUTH
+───────────────────────────────────────── */
+
+.auth-shell {
+    padding: 52px 0 64px;
+}
+
+.auth-grid {
+    display: grid;
+    grid-template-columns: 1.15fr 0.85fr;
+    gap: 26px;
+    align-items: stretch;
+    width: min(100% - 32px, var(--container));
+    margin: 0 auto;
+}
+
+/* Panel izquierdo (info) */
+
+.hero-panel__content {
+    position: relative;
+    overflow: hidden;
+    padding: 42px;
+    border-radius: var(--radius-lg);
+    background:
+        linear-gradient(135deg, rgba(18,59,99,0.96) 0%, rgba(31,95,139,0.93) 52%, rgba(15,139,141,0.88) 100%);
+    color: #fff;
+    box-shadow: var(--shadow-md);
+    border: none;
+}
+
+.hero-panel__content::after {
+    content: "";
+    position: absolute;
+    inset: auto -80px -80px auto;
+    width: 240px;
+    height: 240px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.07);
+    pointer-events: none;
+}
+
+.hero-panel__content .badge {
+    background: rgba(255,255,255,0.14);
+    color: #fff;
+}
+
+.hero-panel__content .section-title {
+    color: #fff;
+    font-size: clamp(1.6rem, 2.5vw, 2.4rem);
+    line-height: 1.1;
+}
+
+.hero-panel__content .section-text {
+    color: rgba(255,255,255,0.86);
+    max-width: 60ch;
+    line-height: 1.7;
+}
+
+/* KPI cards dentro del panel izquierdo */
+
+.kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+    margin-top: 30px;
+}
+
+.kpi-card {
+    padding: 18px;
+    border-radius: 18px;
+    background: rgba(255,255,255,0.10);
+    border: 1px solid rgba(255,255,255,0.12);
+}
+
+.kpi-card__label {
+    margin: 0 0 6px;
+    font-size: 0.78rem;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.72);
+}
+
+.kpi-card__value {
+    margin: 0 0 6px;
+    font-size: 1.65rem;
+    font-weight: 800;
+    line-height: 1;
+    color: #fff;
+}
+
+.kpi-card__meta {
+    margin: 0;
+    font-size: 0.84rem;
+    color: rgba(255,255,255,0.76);
+    line-height: 1.5;
+}
+
+/* Panel derecho (formulario) */
+
+.hero-panel__aside {
+    padding: 38px;
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-sm);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.hero-panel__aside .section-title {
+    margin: 0 0 8px;
+    font-size: 1.7rem;
+    line-height: 1.1;
+    color: var(--text);
+}
+
+.hero-panel__aside .section-text {
+    margin: 0;
+    color: var(--text-soft);
+    line-height: 1.65;
+}
+
+/* Nota de error */
+
+.info-note {
+    margin-top: 16px;
+    padding: 14px 16px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: var(--surface-soft);
+    color: var(--text-soft);
+    font-size: 0.95rem;
+    line-height: 1.55;
+}
+
+/* Formulario */
+
+.auth-form {
+    margin-top: 24px;
+    display: grid;
+    gap: 18px;
+}
+
+.form-group {
+    display: grid;
+    gap: 8px;
+}
+
+.form-label {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--text);
+}
+
+.form-control {
+    width: 100%;
+    padding: 14px 16px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface-soft);
+    color: var(--text);
+    font-size: 1rem;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.form-control::placeholder {
+    color: var(--text-faint);
+}
+
+.form-control:focus {
+    outline: none;
+    border-color: rgba(15, 139, 141, 0.5);
+    box-shadow: 0 0 0 4px rgba(15, 139, 141, 0.10);
+    background: #fff;
+}
+
+.auth-form .btn--primary {
+    width: 100%;
+    margin-top: 6px;
+    min-height: 52px;
+    font-size: 1rem;
+    border-radius: var(--radius-sm);
+}
+
+/* Responsive */
+
+@media (max-width: 1080px) {
+    .auth-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .kpi-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 720px) {
+    .auth-shell {
+        padding: 32px 0 48px;
+    }
+
+    .hero-panel__content {
+        padding: 26px;
+    }
+
+    .hero-panel__aside {
+        padding: 26px;
+    }
+
+    .kpi-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.hero-panel__content .kpi-card__label,
+.hero-panel__content .kpi-card__meta {
+    color: rgba(255, 255, 255, 0.76);
+}
+
+.hero-panel__content .kpi-card__value {
+    color: #ffffff;
+}
+
+.hero-panel__content p,
+.hero-panel__content span {
+    color: rgba(255, 255, 255, 0.86);
+}

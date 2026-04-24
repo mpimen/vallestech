@@ -9,9 +9,9 @@ include __DIR__ . '/../templates/header.php';
 <section class="announcements-hero">
     <div class="container announcements-hero__inner">
         <span class="badge">Comunicaciones</span>
-        <h1>Avisos importantes del centro y novedades del campus.</h1>
+        <h1>Mantente al día con los avisos y novedades del centro.</h1>
         <p>
-            Un espacio claro para reunir novedades académicas, recordatorios institucionales y mensajes relevantes antes de iniciar sesión.
+            Consulta información académica, recordatorios institucionales, incidencias del campus virtual y comunicaciones relevantes para alumnado y profesorado.
         </p>
     </div>
 </section>
@@ -23,33 +23,33 @@ include __DIR__ . '/../templates/header.php';
                 <span class="announcement-card__label">Destacado</span>
                 <h2>Actualización del calendario académico</h2>
                 <p>
-                    Durante esta semana se revisarán las fechas de varias actividades y entregas generales del centro. La planificación final se publicará en el calendario oficial.
+                    Durante esta semana se publicarán ajustes en fechas de actividades, entregas y sesiones programadas. La versión definitiva estará disponible en el calendario oficial del campus.
                 </p>
                 <div class="announcement-card__meta">Coordinación académica · Hoy</div>
             </article>
 
             <article class="announcement-card">
-                <h2>Información sobre matrículas</h2>
+                <h2>Instrucciones para el próximo periodo de matrícula</h2>
                 <p>
-                    Secretaría publicará nuevas instrucciones para el siguiente periodo de matrícula, con detalle de documentación y plazos.
+                    Secretaría compartirá en los próximos días la documentación requerida, los plazos de entrega y el procedimiento actualizado para formalizar la matrícula.
                 </p>
                 <div class="announcement-card__meta">Secretaría · Ayer</div>
             </article>
 
             <article class="announcement-card">
-                <h2>Mantenimiento del campus virtual</h2>
+                <h2>Mantenimiento programado del campus virtual</h2>
                 <p>
-                    Se realizarán tareas de mejora sobre la plataforma en una franja de baja actividad para optimizar la experiencia general del portal.
+                    La plataforma realizará tareas de mejora y optimización en horario de baja actividad para reforzar la estabilidad y el rendimiento del servicio.
                 </p>
                 <div class="announcement-card__meta">Administración web · Esta semana</div>
             </article>
 
             <article class="announcement-card">
-                <h2>Nuevas actividades del centro</h2>
+                <h2>Nuevas actividades y sesiones complementarias</h2>
                 <p>
-                    Se incorporarán nuevas sesiones formativas y actividades complementarias orientadas a la comunidad académica.
+                    El centro incorporará nuevas propuestas formativas, charlas y actividades de apoyo vinculadas al desarrollo académico y profesional del alumnado.
                 </p>
-                <div class="announcement-card__meta">Vida universitaria · Esta semana</div>
+                <div class="announcement-card__meta">Vida académica · Esta semana</div>
             </article>
         </div>
 
@@ -60,14 +60,14 @@ include __DIR__ . '/../templates/header.php';
                     <li>Académico</li>
                     <li>Secretaría</li>
                     <li>Campus virtual</li>
-                    <li>Eventos</li>
+                    <li>Actividades y eventos</li>
                 </ul>
             </div>
 
             <div class="sidebar-card">
-                <h3>Recordatorio</h3>
+                <h3>Consulta rápida</h3>
                 <p>
-                    Esta sección está pensada para mostrar información pública útil antes de acceder al área privada del campus.
+                    Revisa esta sección con frecuencia para conocer cambios de calendario, avisos del centro y comunicaciones importantes antes de acceder al área privada.
                 </p>
             </div>
         </aside>
